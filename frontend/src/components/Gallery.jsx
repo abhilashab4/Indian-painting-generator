@@ -1,12 +1,13 @@
-import { useState } from 'react';
+function timeAgo(ts) {
+  const diff = Math.floor((Date.now() - ts) / 1000);
+  if (diff < 60) return 'Just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
 
-export default function Gallery({ paintings, onView }) {
-  const [modalImg, setModalImg] = useState(null);
-
+export default function Gallery({ paintings, selectedId, onSelect, onRemove }) {
   if (!paintings.length) return null;
-
-  const openModal = (p) => setModalImg(p);
-  const closeModal = () => setModalImg(null);
 
   return (
     <section className="gallery-section" id="gallery">
@@ -16,36 +17,52 @@ export default function Gallery({ paintings, onView }) {
         <div className="line" />
       </div>
       <h2>Recent Paintings</h2>
-      <div className="gallery-grid">
-        {paintings.map((p, i) => (
-          <div key={i} className="gallery-card" onClick={() => openModal(p)}>
-            <img src={p.imageUrl} alt={p.prompt.slice(0, 60)} loading="lazy" />
-            <div className="gallery-card-info">
-              <div className="prompt-text">{p.prompt}</div>
-              <div className="meta-row">
-                <span className="style-badge">{p.style}</span>
-                <span>{p.width}×{p.height}</span>
-                <span>{new Date(p.timestamp).toLocaleTimeString()}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      <p className="gallery-subtitle">{paintings.length} {paintings.length === 1 ? 'painting' : 'paintings'} generated this session</p>
 
-      {modalImg && (
-        <div className="modal-overlay" onClick={closeModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeModal}>✕</button>
-            <img src={modalImg.imageUrl} alt="Full preview" />
-            <div className="modal-info">
-              <div className="prompt-text">{modalImg.prompt}</div>
-              <div className="meta-text">
-                {modalImg.style} · {modalImg.width}×{modalImg.height} · {modalImg.steps} steps · LoRA {modalImg.loraScale.toFixed(1)}
+      {/* Scrollable container with max-height */}
+      <div className="gallery-scroll-container">
+        <div className="gallery-grid">
+          {paintings.map((p) => {
+            const isSelected = p.id === selectedId;
+            return (
+              <div
+                key={p.id}
+                className={`gallery-card${isSelected ? ' gallery-card--selected' : ''}`}
+                onClick={() => onSelect(p)}
+                role="button"
+                tabIndex={0}
+                aria-label={`View: ${p.prompt.slice(0, 60)}`}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onSelect(p); }}
+              >
+                {isSelected && (
+                  <div className="gallery-card-selected-badge">✓ Selected</div>
+                )}
+                <div className="gallery-card-img-wrap">
+                  <img src={p.imageUrl} alt={p.prompt.slice(0, 60)} loading="lazy" />
+                </div>
+                <div className="gallery-card-info">
+                  <div className="prompt-text">{p.prompt}</div>
+                  <div className="meta-row">
+                    <span className="style-badge" style={{ textTransform: 'capitalize' }}>{p.style}</span>
+                    <span>{p.width}×{p.height}</span>
+                    <span>{timeAgo(p.createdAt)}</span>
+                  </div>
+                </div>
+                {onRemove && (
+                  <button
+                    className="gallery-card-remove"
+                    title="Remove from history"
+                    onClick={(e) => { e.stopPropagation(); onRemove(p.id); }}
+                    aria-label="Remove painting from history"
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
-            </div>
-          </div>
+            );
+          })}
         </div>
-      )}
+      </div>
     </section>
   );
 }

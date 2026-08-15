@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import Header from './components/Header';
 import PromptEditor from './components/PromptEditor';
 import StyleSelector from './components/StyleSelector';
@@ -11,8 +11,12 @@ import { generateImage } from './services/imageGeneration';
 
 const DEFAULT_PROMPT = `Mughal miniature painting depicting a graceful Mughal noblewoman in richly embroidered traditional Mughal attire, standing beneath an ornate pavilion during a monsoon downpour, patiently waiting for someone. A majestic peacock stands nearby on a lush garden path, its feathers glistening with raindrops and tail partially fanned. Rain falls across a lush Mughal garden filled with flowering plants, cypress trees, marble architecture, and delicate puddles reflecting the scene. Intricate gold detailing, fine brushwork, jewel-toned garments, traditional Mughal miniature style, opaque watercolor and gold on paper, highly detailed, elegant courtly atmosphere.`;
 
+let nextId = 1;
+
 export default function App() {
   const [section, setSection] = useState('create');
+
+  // --- Prompt / generation controls (for the NEXT generation) ---
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [style, setStyle] = useState('mughal');
   const [steps, setSteps] = useState(25);
@@ -20,19 +24,21 @@ export default function App() {
   const [loraScale, setLoraScale] = useState(1.0);
   const [width, setWidth] = useState(768);
   const [height, setHeight] = useState(768);
+
+  // --- Generation status ---
   const [status, setStatus] = useState('idle'); // idle | loading | done | error
-  const [imageUrl, setImageUrl] = useState(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [promptError, setPromptError] = useState('');
-  const [paintings, setPaintings] = useState([]);
-  const prevUrlRef = useRef(null);
 
-  // Revoke old object URLs to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      if (prevUrlRef.current) URL.revokeObjectURL(prevUrlRef.current);
-    };
-  }, []);
+  // --- History (never cleared, only appended) ---
+  const [generationHistory, setGenerationHistory] = useState([]);
+
+  // --- The generation currently being viewed in the main preview ---
+  // null → no generation yet; otherwise a history item object
+  const [selectedGeneration, setSelectedGeneration] = useState(null);
+
+  // Track all URLs we own so we can revoke them only when removing from history
+  const ownedUrlsRef = useRef(new Set());
 
   const handleGenerate = useCallback(async () => {
     if (!prompt.trim()) {
@@ -43,57 +49,109 @@ export default function App() {
     setStatus('loading');
     setErrorMsg('');
 
-    // Revoke previous image URL
-    if (prevUrlRef.current) {
-      URL.revokeObjectURL(prevUrlRef.current);
-      prevUrlRef.current = null;
-    }
+    // Capture parameters at time of generation
+    const genPrompt = prompt.trim();
+    const genStyle = style;
+    const genSteps = steps;
+    const genGuidance = guidance;
+    const genWidth = width;
+    const genHeight = height;
+    const genLoraScale = loraScale;
 
     try {
-      const url = await generateImage({
-        prompt: prompt.trim(),
-        style,
-        steps,
-        guidance,
-        width,
-        height,
-        lora_scale: loraScale,
+      const imageUrl = await generateImage({
+        prompt: genPrompt,
+        style: genStyle,
+        steps: genSteps,
+        guidance: genGuidance,
+        width: genWidth,
+        height: genHeight,
+        lora_scale: genLoraScale,
       });
-      prevUrlRef.current = url;
-      setImageUrl(url);
-      setStatus('done');
 
-      // Add to gallery
-      setPaintings((prev) => [
-        { imageUrl: url, prompt: prompt.trim(), style, width, height, steps, guidance, loraScale, timestamp: Date.now() },
-        ...prev,
-      ]);
+      // Track the URL so we know it belongs to us
+      ownedUrlsRef.current.add(imageUrl);
+
+      const newItem = {
+        id: nextId++,
+        imageUrl,
+        prompt: genPrompt,
+        style: genStyle,
+        steps: genSteps,
+        guidance: genGuidance,
+        width: genWidth,
+        height: genHeight,
+        loraScale: genLoraScale,
+        createdAt: Date.now(),
+      };
+
+      // Prepend new item — never overwrite existing history
+      setGenerationHistory((prev) => [newItem, ...prev]);
+
+      // Make the new image the selected (currently viewed) one
+      setSelectedGeneration(newItem);
+      setStatus('done');
     } catch (err) {
       setErrorMsg(err.message);
       setStatus('error');
     }
   }, [prompt, style, steps, guidance, width, height, loraScale]);
 
+  // Called when user clicks a card in the gallery — just switch view, no API call
+  const handleSelectFromHistory = useCallback((item) => {
+    setSelectedGeneration(item);
+    // If we were in error/idle state, show done so the preview shows the image
+    setStatus('done');
+  }, []);
+
+  // Remove an item from history and revoke its URL to free memory
+  const handleRemoveFromHistory = useCallback((id) => {
+    setGenerationHistory((prev) => {
+      const item = prev.find((p) => p.id === id);
+      if (item && ownedUrlsRef.current.has(item.imageUrl)) {
+        URL.revokeObjectURL(item.imageUrl);
+        ownedUrlsRef.current.delete(item.imageUrl);
+      }
+      return prev.filter((p) => p.id !== id);
+    });
+    // If the removed item was selected, clear selection
+    setSelectedGeneration((sel) => (sel?.id === id ? null : sel));
+  }, []);
+
   const handleDownload = useCallback(() => {
-    if (!imageUrl) return;
+    if (!selectedGeneration?.imageUrl) return;
     const a = document.createElement('a');
-    a.href = imageUrl;
-    a.download = `chitra-${style}-${Date.now()}.png`;
+    a.href = selectedGeneration.imageUrl;
+    a.download = `chitra-${selectedGeneration.style}-${selectedGeneration.id}.png`;
     a.click();
-  }, [imageUrl, style]);
+  }, [selectedGeneration]);
 
   const handleFullscreen = useCallback(() => {
-    if (!imageUrl) return;
-    window.open(imageUrl, '_blank');
-  }, [imageUrl]);
+    if (!selectedGeneration?.imageUrl) return;
+    window.open(selectedGeneration.imageUrl, '_blank');
+  }, [selectedGeneration]);
 
   const handleReset = useCallback(() => {
+    // "Generate Again" — just go back to idle so user can adjust + generate
     setStatus('idle');
-    setImageUrl(null);
-    setErrorMsg('');
   }, []);
 
   const isLoading = status === 'loading';
+
+  // Derive the current image URL and meta for ImagePreview from selectedGeneration
+  const currentImageUrl = selectedGeneration?.imageUrl ?? null;
+  const currentMeta = selectedGeneration
+    ? {
+        style: selectedGeneration.style,
+        width: selectedGeneration.width,
+        height: selectedGeneration.height,
+        steps: selectedGeneration.steps,
+        guidance: selectedGeneration.guidance,
+        loraScale: selectedGeneration.loraScale,
+        prompt: selectedGeneration.prompt,
+        createdAt: selectedGeneration.createdAt,
+      }
+    : null;
 
   return (
     <>
@@ -142,9 +200,9 @@ export default function App() {
             <div className="preview-panel">
               <ImagePreview
                 status={status}
-                imageUrl={imageUrl}
+                imageUrl={currentImageUrl}
                 error={errorMsg}
-                meta={{ style, width, height, steps, loraScale }}
+                meta={currentMeta}
                 onDownload={handleDownload}
                 onReset={handleReset}
                 onFullscreen={handleFullscreen}
@@ -152,15 +210,28 @@ export default function App() {
             </div>
           </div>
 
-          {/* Gallery */}
-          <Gallery paintings={paintings} />
+          {/* Recent Paintings — always rendered below workspace, persists across generates */}
+          <Gallery
+            paintings={generationHistory}
+            selectedId={selectedGeneration?.id ?? null}
+            onSelect={handleSelectFromHistory}
+            onRemove={handleRemoveFromHistory}
+          />
         </>
       )}
 
       {section === 'gallery' && (
         <div style={{ paddingTop: 40 }}>
-          {paintings.length ? (
-            <Gallery paintings={paintings} />
+          {generationHistory.length ? (
+            <Gallery
+              paintings={generationHistory}
+              selectedId={selectedGeneration?.id ?? null}
+              onSelect={(item) => {
+                handleSelectFromHistory(item);
+                setSection('create');
+              }}
+              onRemove={handleRemoveFromHistory}
+            />
           ) : (
             <div className="hero">
               <h1>Gallery</h1>
@@ -174,7 +245,7 @@ export default function App() {
         <section className="about-section" id="about">
           <h2>About Chitra</h2>
           <p>
-            <strong>Chitra</strong> (चित्र, meaning "painting" in Sanskrit) is a digital atelier that merges the rich heritage of Indian miniature painting traditions with modern generative AI.
+            <strong>Chitra</strong> (चित्र, meaning &ldquo;painting&rdquo; in Sanskrit) is a digital atelier that merges the rich heritage of Indian miniature painting traditions with modern generative AI.
           </p>
           <p>
             Our studio supports two iconic painting traditions: <strong>Mughal</strong> miniatures, known for their refined imperial elegance and intricate court scenes, and <strong>Kangra</strong> miniatures, celebrated for their lyrical romanticism and naturalistic beauty rooted in the Pahari hills.
