@@ -260,56 +260,61 @@ class IndianPaintingModel:
     image=image,
     timeout=1200,
 )
-@modal.fastapi_endpoint(
-    method="POST"
-)
-def generate_image(request: dict):
+@modal.asgi_app()
+def generate_image():
 
-    from fastapi import Response
+    from fastapi import FastAPI, Request, Response
+    from fastapi.middleware.cors import CORSMiddleware
 
+    web_app = FastAPI()
 
-    prompt = request.get("prompt")
-
-    if not prompt:
-        return {
-            "error": "prompt is required"
-        }
-
-
-    style = request.get("style", "kangra",)
-
-    steps = request.get("steps", 20,)
-
-    guidance = request.get("guidance", 3.5,)
-
-    width = request.get("width", 768,)
-
-    height = request.get("height", 768,)
-
-    lora_scale = request.get("lora_scale", 1.0,)
-
-
-    if style not in ["kangra", "mughal"]:
-        return {
-            "error": "style must be 'kangra' or 'mughal'"
-        }
-
-
-    model = IndianPaintingModel()
-
-
-    image_bytes = model.generate.remote(
-        prompt=prompt,
-        style=style,
-        steps=steps,
-        guidance=guidance,
-        width=width,
-        height=height,
-        lora_scale=lora_scale,
+    web_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
+    @web_app.post("/")
+    async def handle_generate(request: Request):
 
-    return Response(
-        content=image_bytes,
-        media_type="image/png",
-    )
+        body = await request.json()
+
+        prompt = body.get("prompt")
+
+        if not prompt:
+            return {
+                "error": "prompt is required"
+            }
+
+        style = body.get("style", "kangra")
+        steps = body.get("steps", 20)
+        guidance = body.get("guidance", 3.5)
+        width = body.get("width", 768)
+        height = body.get("height", 768)
+        lora_scale = body.get("lora_scale", 1.0)
+
+        if style not in ["kangra", "mughal"]:
+            return {
+                "error": "style must be 'kangra' or 'mughal'"
+            }
+
+        model = IndianPaintingModel()
+
+        image_bytes = await model.generate.remote(
+            prompt=prompt,
+            style=style,
+            steps=steps,
+            guidance=guidance,
+            width=width,
+            height=height,
+            lora_scale=lora_scale,
+        )
+
+        return Response(
+            content=image_bytes,
+            media_type="image/png",
+        )
+
+    return web_app
