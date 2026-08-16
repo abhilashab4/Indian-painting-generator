@@ -771,6 +771,52 @@ body {
   justify-content: center;
 }
 
+/* ===== GENERATION SETTINGS BAR ===== */
+.generation-settings-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0;
+  margin-top: 20px;
+  padding: 14px 20px;
+  background: var(--ivory);
+  border: 1px solid var(--border-ornate);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 560px;
+}
+
+.settings-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 0 18px;
+}
+
+.settings-chip-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--brown-light);
+}
+
+.settings-chip-value {
+  font-family: var(--font-heading);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--brown-dark);
+}
+
+.settings-chip-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border-ornate);
+  flex-shrink: 0;
+}
+
 .btn-action {
   padding: 10px 20px;
   border: 1px solid var(--border-ornate);

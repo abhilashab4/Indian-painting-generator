@@ -11,7 +11,7 @@ export default function PromptEditor({ prompt, setPrompt, error }) {
       />
       <div className="prompt-footer">
         <span className="char-count">{prompt.length} characters</span>
-        <button className="btn-enhance" title="Coming soon">✦ Enhance Prompt</button>
+        {/* <button className="btn-enhance" title="Coming soon">✦ Enhance Prompt</button> */}
       </div>
       {error && <div className="prompt-error">⚠ {error}</div>}
     </div>

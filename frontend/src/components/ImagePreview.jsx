@@ -1,11 +1,3 @@
-function timeAgo(ts) {
-  const diff = Math.floor((Date.now() - ts) / 1000);
-  if (diff < 60) return 'Just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
-
 export default function ImagePreview({ status, imageUrl, error, meta, onDownload, onReset, onFullscreen }) {
   if (status === 'loading') {
     return (
@@ -36,61 +28,42 @@ export default function ImagePreview({ status, imageUrl, error, meta, onDownload
 
   if (status === 'done' && imageUrl) {
     return (
-      <div className="preview-done-layout">
-        {/* Left: image */}
-        <div className="preview-frame preview-frame--image">
-          <div className="result-container">
-            <img src={imageUrl} alt="Generated miniature painting" />
-          </div>
-        </div>
-
-        {/* Right: metadata panel */}
-        <div className="image-details-panel">
-          <div className="details-section">
-            <p className="details-label">Style</p>
-            <p className="details-value" style={{ textTransform: 'capitalize' }}>{meta?.style}</p>
-          </div>
-
-          <div className="details-section">
-            <p className="details-label">Resolution</p>
-            <p className="details-value">{meta?.width} × {meta?.height}</p>
-          </div>
-
-          <div className="details-section">
-            <p className="details-label">Steps</p>
-            <p className="details-value">{meta?.steps}</p>
-          </div>
-
-          <div className="details-section">
-            <p className="details-label">Guidance</p>
-            <p className="details-value">{meta?.guidance}</p>
-          </div>
-
-          <div className="details-section">
-            <p className="details-label">LoRA Strength</p>
-            <p className="details-value">{meta?.loraScale?.toFixed(1)}</p>
-          </div>
-
-          {meta?.createdAt && (
-            <div className="details-section">
-              <p className="details-label">Generated</p>
-              <p className="details-value">{timeAgo(meta.createdAt)}</p>
-            </div>
-          )}
-
-          {meta?.prompt && (
-            <div className="details-section details-prompt">
-              <p className="details-label">Prompt</p>
-              <div className="prompt-divider" />
-              <p className="details-prompt-text">{meta.prompt}</p>
-            </div>
-          )}
-
-          <div className="details-actions">
+      <div className="preview-frame" style={{ justifyContent: 'flex-start' }}>
+        <div className="result-container">
+          <img src={imageUrl} alt="Generated miniature painting" />
+          <div className="result-actions">
             <button className="btn-action primary" onClick={onDownload}>⬇ Download PNG</button>
             <button className="btn-action" onClick={onReset}>✦ Generate Again</button>
             <button className="btn-action" onClick={onFullscreen}>⛶ Open Fullscreen</button>
           </div>
+          {meta && (
+            <div className="generation-settings-bar">
+              <div className="settings-chip">
+                <span className="settings-chip-label">Style</span>
+                <span className="settings-chip-value" style={{ textTransform: 'capitalize' }}>{meta.style}</span>
+              </div>
+              <div className="settings-chip-divider" />
+              <div className="settings-chip">
+                <span className="settings-chip-label">Size</span>
+                <span className="settings-chip-value">{meta.width} × {meta.height}</span>
+              </div>
+              <div className="settings-chip-divider" />
+              <div className="settings-chip">
+                <span className="settings-chip-label">Steps</span>
+                <span className="settings-chip-value">{meta.steps}</span>
+              </div>
+              <div className="settings-chip-divider" />
+              <div className="settings-chip">
+                <span className="settings-chip-label">Guidance</span>
+                <span className="settings-chip-value">{meta.guidance}</span>
+              </div>
+              <div className="settings-chip-divider" />
+              <div className="settings-chip">
+                <span className="settings-chip-label">LoRA</span>
+                <span className="settings-chip-value">{meta.loraScale?.toFixed(1)}</span>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
